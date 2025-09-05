@@ -1,8 +1,10 @@
 from flask import Flask
+import os
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
+socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
 
 global level_compledted, level, players, destroyed_bricks, bullets, data_msg
 level_compledted = [
@@ -181,4 +183,5 @@ def bullets_tick():
 threading.Thread(target=bullets_tick, daemon=True).start()
 
 if __name__ == "__main__":
+
     socketio.run(app, host="0.0.0.0", port=6789)
