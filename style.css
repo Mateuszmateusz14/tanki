@@ -1,0 +1,121 @@
+body {
+    background: #000;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    font-family: monospace;
+}
+#game {
+    display: block;
+    position: absolute;
+    left: 50%;
+    top: 3%;
+    transform: translate(-52%);
+    box-shadow: 0 0 40px #222a;
+    background: #000;
+}
+
+#version {
+    position: fixed;
+    bottom: 10px;
+    left: 10px;
+    color: #3b5be0;
+    font-size: 18px;
+    font-family: monospace;
+    z-index: 30;
+}
+
+#chat-container {
+    position: fixed;
+    top: 100px;
+    right: 20px;
+    width: 360px;
+    height: 700px;
+    background: #3b5be0;
+    color: #111;
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+    box-shadow: 0 0 30px #2228;
+}
+#chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 30px 20px 10px 20px;
+    font-size: 22px;
+    font-family: monospace;
+    color: #111;
+    word-break: break-word;
+}
+#chat-input {
+    border: none;
+    border-top: 2px solid #111;
+    padding: 18px;
+    font-size: 22px;
+    background: #fff;
+    color: #111;
+    outline: none;
+    border-radius: 0 0 20px 20px;
+    font-family: monospace;
+}
+
+#chat-reset {
+    z-index: 30;
+    top: 3%;
+    right: 20px;
+    width: 360px;
+    position: fixed;
+    text-align: center;
+}
+
+#chat-reset button {
+    width: 100%;
+    padding: 18px;
+    font-size: 22px;
+    border: none;
+    border-radius: 20px;
+    background: #3b5be0; /* niebieskie tło */
+    color: #000;         /* czarny tekst */
+    font-family: monospace;
+    cursor: pointer;
+}
+#chat-reset button:hover {
+    background: #2a46b0; /* ciemniejszy niebieski przy najechaniu */
+}
+
+#players-table {
+    position: fixed;
+    top: 3%;
+    left: 1%;
+    width: 320px;
+    background: #222;
+    color: #fff;
+    border-radius: 20px;
+    box-shadow: 0 0 30px #2228;
+    font-family: monospace;
+    z-index: 20;
+    overflow: hidden;
+}
+
+.players-header {
+    background: #3b5be0;
+    padding: 16px 20px;
+    font-size: 22px;
+    font-weight: bold;
+    border-radius: 20px 20px 0 0;
+    border-bottom: 2px solid #222;
+}
+#players-list {
+    padding: 10px 20px 16px 20px;
+    font-size: 18px;
+}
+.player-row {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid #444;
+    padding: 6px 0;
+}
+.player-row:last-child {
+    border-bottom: none;
+}

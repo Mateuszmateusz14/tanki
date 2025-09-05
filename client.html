@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>tanki</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game" width="800" height="800"></canvas>
+<div id="chat-container">
+    <div id="chat-messages"></div>
+    <input id="chat-input" type="text" placeholder="napisz wiadomość" maxlength="100" autocomplete="off" />
+</div>
+<div id="players-table">
+    <div class="players-header">Gracze online</div>
+    <div id="players-list"></div>
+</div>
+<div id="version">v1.0.1 - 05.09.2025</div>
+<div id="chat-reset">
+    <button onclick="document.getElementById('chat-messages').innerHTML = '';">Wyczyść czat</button>
+</div>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const socket = io('ws://192.168.1.108:6789');
+//const socket = io('ws://192.168.1.20:6789');
+
+const pressed = {};// Czat
+const chatInput = document.getElementById('chat-input');
+const chatMessages = document.getElementById('chat-messages');
+
+chatInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && chatInput.value.trim()) {
+        socket.emit('chat_message', {name: myTank.name, msg: chatInput.value});
+        chatInput.value = '';
+    }
+});
+
+socket.on('chat_message', data => {
+    const div = document.createElement('div');
+    div.textContent = `${data.name}: ${data.msg}`;
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+});
+
+// Obrazki
+const brickImg = new Image(); brickImg.src = 'cegla.png';
+const wallImg = new Image(); wallImg.src = 'metal.png';
+const waterImg = new Image(); waterImg.src = 'woda.png';
+const tankImg = new Image(); tankImg.src = 'goldtank.png';
+
+let imagesLoaded = 0;
+const totalImages = 4;
+function checkAllImagesLoaded() {
+    imagesLoaded++;
+    if (imagesLoaded === totalImages) {
+        draw();
+    }
+}
+brickImg.onload = checkAllImagesLoaded;
+wallImg.onload = checkAllImagesLoaded;
+waterImg.onload = checkAllImagesLoaded;
+tankImg.onload = checkAllImagesLoaded;
+
+let myId = Math.random().toString(36).substr(2, 36);
+let players = {};
+let map = [];
+let bullets = [];
+
+let input_name = prompt("Podaj nazwę gracza:", "Player");
+
+let myTank = {
+    id: myId,
+    name: input_name,
+    x: 50,
+    y: 50,
+    dir: 'down',
+    health: 1,
+    status: 'playing'
+};
+
+socket.on('level', data => {
+    map = data.mapa.map(row => row.split(''));
+    bullets = data.bullets || [];
+});
+
+function updatePlayersTable() {
+    const list = document.getElementById('players-list');
+    list.innerHTML = '';
+    const arr = Object.values(players);
+    arr.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'player-row';
+        row.innerHTML = `<span style="color:#aaa">${p.id}</span> <span style="color:#3b5be0">${p.name}</span> <span style="color:#3b5be0;font-weight:bold">${p.health !== undefined ? p.health : 3}</span>`;
+        list.appendChild(row);
+    });
+    // Dodaj liczbę graczy w kolorze niebieskim do nagłówka
+    const header = document.querySelector('.players-header');
+    header.textContent = `Gracze online (${arr.length})`;
+}
+
+// Wywołuj po każdej aktualizacji graczy:
+socket.on('game_state', state => {
+    players = state.players || {};
+    bullets = state.bullets || [];
+    if (state.mapa) {
+        map = state.mapa.map(row => row.split(''));
+    }
+    if (players[myId]) {
+        if (myTank.status !== 'lost' && players[myId].status === 'lost') {
+            setTimeout(() => {
+                myTank.status = 'playing';
+                myTank.health = 3;
+                myTank.x = 50;
+                myTank.y = 50;
+                sendUpdate();
+            }, 10000);
+        }
+        myTank.status = players[myId].status;
+        myTank.health = players[myId].health;
+    }
+    updatePlayersTable();
+});
+
+function sendUpdate() {
+    socket.emit('player_update', {
+        id: myId,
+        name: myTank.name,
+        x: myTank.x,
+        y: myTank.y,
+        dir: myTank.dir
+        // NIE wysyłaj health ani status!
+    });
+}
+
+function isBlocked(x, y) {
+    const size = 28;
+    const corners = [
+        [x, y],
+        [x + size - 1, y],
+        [x, y + size - 1],
+        [x + size - 1, y + size - 1]
+    ];
+    for (let [px, py] of corners) {
+        const tx = Math.floor(px / 30);
+        const ty = Math.floor(py / 30);
+        if (ty < 0 || ty >= map.length || tx < 0 || tx >= map[0].length) return true;
+        const tile = map[ty][tx];
+        if (tile === 'W' || tile === 'C' || tile === 'O') return true;
+    }
+    return false;
+}
+
+let canShoot = true;
+
+function fireBullet() {
+    if (!canShoot) return;
+    canShoot = false;
+    setTimeout(() => { canShoot = true; }, 5000);
+
+    const { x, y, dir } = myTank;
+    if (dir === 'up'){
+        bullets.push({ x: x + 14, y: y + 0, dir, owner: myId });
+        socket.emit('bullet_fired', { x: x + 14, y: y + 0, dir, owner: myId });
+    }
+    if (dir === 'right'){
+        bullets.push({ x: x + 30, y: y + 14, dir, owner: myId });
+        socket.emit('bullet_fired', { x: x + 30, y: y + 14, dir, owner: myId });
+    }
+    if (dir === 'down'){
+        bullets.push({ x: x + 14, y: y + 30, dir, owner: myId });
+        socket.emit('bullet_fired', { x: x + 14, y: y + 30, dir, owner: myId });
+    }
+    if (dir === 'left'){
+        bullets.push({ x: x + 0, y: y + 14, dir, owner: myId });
+        socket.emit('bullet_fired', { x: x + 0, y: y + 14, dir, owner: myId });
+    }
+}
+
+const speed = 120; // pikseli na sekundę (zmień według uznania)
+
+function updateTank(delta = 1/60) {
+    if (myTank.status !== 'playing') return;
+    let newX = myTank.x;
+    let newY = myTank.y;
+    if (pressed['w']) { newY -= speed * delta; myTank.dir = 'up'; }
+    if (pressed['s']) { newY += speed * delta; myTank.dir = 'down'; }
+    if (pressed['a']) { newX -= speed * delta; myTank.dir = 'left'; }
+    if (pressed['d']) { newX += speed * delta; myTank.dir = 'right'; }
+    if (!isBlocked(newX, newY)) {
+        myTank.x = newX;
+        myTank.y = newY;
+        sendUpdate();
+    }
+}
+
+function drawTank(x, y, dir, health) {
+    ctx.save();
+    ctx.translate(x + 14, y + 14);
+    if (dir === 'up') ctx.rotate(0);
+    if (dir === 'right') ctx.rotate(Math.PI / 2);
+    if (dir === 'down') ctx.rotate(Math.PI);
+    if (dir === 'left') ctx.rotate(-Math.PI / 2);
+    ctx.drawImage(tankImg, -14, -14, 28, 28);
+    ctx.restore();
+    ctx.fillStyle = '#fff';
+    ctx.fillText(health, x + 10, y + 30);
+}
+
+function drawBullets() {
+    ctx.fillStyle = 'yellow';
+    for (let b of bullets) {
+        ctx.fillRect(b.x - 2, b.y - 2, 4, 4);
+    }
+}
+
+document.addEventListener('keydown', e => {
+    if (document.activeElement === chatInput) return; // blokada sterowania podczas pisania
+    pressed[e.key] = true;
+    if (e.key === ' ') fireBullet();
+});
+document.addEventListener('keyup', e => {
+    if (document.activeElement === chatInput) return; // blokada sterowania podczas pisania
+    pressed[e.key] = false;
+});
+
+let lastFrame = performance.now();
+
+function draw() {
+    const now = performance.now();
+    const delta = (now - lastFrame) / 1000; // sekundy od poprzedniej klatki
+    lastFrame = now;
+
+    if (myTank.status === 'lost') {
+        ctx.save();
+        ctx.globalAlpha = 0.85;
+        ctx.fillStyle = '#222';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.globalAlpha = 1.0;
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 40px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('Przegrałeś!', canvas.width / 2, canvas.height / 2 - 30);
+        ctx.font = '24px monospace';
+        ctx.fillText('Za 10 sekund wrócisz do gry...', canvas.width / 2, canvas.height / 2 + 20);
+        ctx.restore();
+        return; // NIE rysuj reszty gry!
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let y = 0; y < map.length; y++) {
+        for (let x = 0; x < map[y].length; x++) {
+            const tile = map[y][x];
+            if (tile === 'C') ctx.drawImage(brickImg, x * 30, y * 30, 30, 30);
+            if (tile === 'W') ctx.drawImage(wallImg, x * 30, y * 30, 30, 30);
+            if (tile === 'O') ctx.drawImage(waterImg, x * 30, y * 30, 30, 30);
+        }
+    }
+    Object.values(players).forEach(p => drawTank(p.x, p.y, p.dir, p.health));
+    drawBullets();
+    updateTank(delta); // przekazujemy delta!
+    requestAnimationFrame(draw);
+}
+</script>
+</body>
+</html>
